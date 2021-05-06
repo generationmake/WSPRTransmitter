@@ -19,7 +19,9 @@
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
 #define WSPR_DELAY              683          // Delay value for WSPR
 
-#define WSPR_DEFAULT_FREQ       50294600ULL    // 1600 Hz higher than dial freq
+#define WSPR_DEFAULT_FREQ       28123800ULL    // 1600 Hz higher than dial freq, freq corrected
+//#define WSPR_DEFAULT_FREQ       28126200ULL    // 1600 Hz higher than dial freq
+//#define WSPR_DEFAULT_FREQ       50294600ULL    // 1600 Hz higher than dial freq
 #define DEFAULT_MODE            MODE_WSPR
 
 // Class instantiation
