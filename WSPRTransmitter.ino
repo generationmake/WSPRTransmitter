@@ -22,7 +22,6 @@
 #define WSPR_DEFAULT_FREQ       28123800ULL    // 1600 Hz higher than dial freq, freq corrected
 //#define WSPR_DEFAULT_FREQ       28126200ULL    // 1600 Hz higher than dial freq
 //#define WSPR_DEFAULT_FREQ       50294600ULL    // 1600 Hz higher than dial freq
-#define DEFAULT_MODE            MODE_WSPR
 
 // Class instantiation
 Si5351 si5351;
@@ -32,7 +31,7 @@ JTEncode jtencode;
 unsigned long long freq;
 char call[] = "N0CALL";
 char loc[] = "AA00";
-uint8_t dbm = 27;
+uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
 uint16_t tone_delay, tone_spacing;
@@ -64,7 +63,7 @@ void encode()
   }
 
   // Turn off the output
- // si5351.output_enable(SI5351_CLK0, 0); // do not turn off so that there is less drift
+  si5351.output_enable(SI5351_CLK0, 0);
   digitalWrite(LED_BUILTIN, LOW);
 }
 
