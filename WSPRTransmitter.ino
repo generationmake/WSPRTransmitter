@@ -45,6 +45,20 @@ DogGraphicDisplay DOG;
 volatile time_t global_timestamp=0;
 volatile bool flag_rmc=0;
 nmea::RmcData global_rmc;
+  const char *locatorbuf;
+
+const char *maidenhead(float lon, float lat)
+{
+  static char locator[7]="000000";  // create buffer
+  int x, y;
+  locator[0]=(int)(lon+180.0)/20+65;
+  locator[1]=(int)(lat+90.0)/10+65;
+  locator[2]=((int)(lon+180.0)%20)/2+48;
+  locator[3]=(int)(lat+90.0)%10+48;
+  locator[4]=(int)(((lon/2+90.0)-(int)(lon/2+90.0))*24.0)+65;
+  locator[5]=(int)(((lat+90.0)-(int)(lat+90.0))*24.0)+65;
+  return locator;
+}
 
 // Loop through the string, transmitting one character at a time.
 void encode()
@@ -150,7 +164,7 @@ void setup() {
 
   // Encode the message in the transmit buffer
   // This is RAM intensive and should be done separately from other subroutines
-  set_tx_buffer();
+//  set_tx_buffer();
 }
 
 void loop() {
@@ -167,17 +181,29 @@ void loop() {
     {
       global_timestamp = nmea::toPosixTimestamp(global_rmc.date, global_rmc.time_utc);
       setTime(global_timestamp);
+
+      if (global_rmc.is_valid&&state==1)
+      {
+        locatorbuf=maidenhead(global_rmc.longitude,global_rmc.latitude);
+        loc[0]=locatorbuf[0];
+        loc[1]=locatorbuf[1];
+        loc[2]=locatorbuf[2];
+        loc[3]=locatorbuf[3];
+        set_tx_buffer();
+        state=2;
+      }
+
       if(state==0) state=1;
-      if(state==2) state=3;
-      if(global_rmc.time_utc.second==0)   // start of minute
+      if(state==3) state=4;
+      if(global_rmc.time_utc.second==0&&state>1)   // start of minute
       {
         if((global_rmc.time_utc.minute%2)==0)   // every second minute
         {
-          state=2;    // start WSPR transmission
+          state=3;    // start WSPR transmission
         }
       }
     }
-    if(state==2) encode();    // send WSPR data
+    if(state==3) encode();    // send WSPR data
 
     DOG.clear();
     if(state>0)
@@ -186,9 +212,14 @@ void loop() {
       DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_CENTER); // print date
     }
     else DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
-    if(state==1) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_CENTER); // print status in line 0 
-    if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_CENTER); // print status in line 0 
-    if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_CENTER); // print status in line 0 
+    if(state>1)
+    {
+      DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
+    }
+    if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
+    if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
+    if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
+    if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0 
   }
 }
 
