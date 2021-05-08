@@ -14,6 +14,9 @@
 #include <string.h>
 
 #include "Wire.h"
+#define TIMER_INTERRUPT_DEBUG         0
+#define _TIMERINTERRUPT_LOGLEVEL_     0
+#include "SAMDTimerInterrupt.h"
 
 // Mode defines
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
@@ -44,8 +47,12 @@ ArduinoNmeaParser parser(onRmcUpdate, NULL);
 DogGraphicDisplay DOG;
 volatile time_t global_timestamp=0;
 volatile bool flag_rmc=0;
+volatile bool flag_timer=0;
 nmea::RmcData global_rmc;
-  const char *locatorbuf;
+const char *locatorbuf;
+
+SAMDTimer ITimer0(TIMER_TC3);
+
 
 const char *maidenhead(float lon, float lat)
 {
@@ -60,6 +67,35 @@ const char *maidenhead(float lon, float lat)
   return locator;
 }
 
+// Loop through the string, transmitting one character at a time.
+bool handle_wspr_tx(bool start_new)
+{
+  static uint8_t i;
+
+  if(start_new==true)
+  {
+    i=0;
+    // Reset the tone to the base frequency and turn on the output
+    si5351.output_enable(SI5351_CLK0, 1);
+  //  digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  if(i < symbol_count)
+  {
+    unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
+    si5351.set_freq(jf, SI5351_CLK0);
+//    delay(tone_delay);
+    i++;
+    return true;
+  }
+  else
+  {
+  // Turn off the output
+    si5351.output_enable(SI5351_CLK0, 0);
+//  digitalWrite(LED_BUILTIN, LOW);
+    return false;
+  }
+}
 // Loop through the string, transmitting one character at a time.
 void encode()
 {
@@ -174,6 +210,23 @@ void loop() {
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
   }
+  if(flag_timer)
+  {
+    flag_timer=0;
+    if(state==3) 
+    {
+      handle_wspr_tx(1);  // init wspr transmission
+      state=4;
+    }
+    else if(state==4)
+    {
+      if(!(handle_wspr_tx(0))) // send more data
+      {
+        state=2; // stop transmission     
+        ITimer0.disableTimer(); // stop timer
+      }
+    }
+  }
   if(flag_rmc)
   {
     flag_rmc=0;
@@ -194,16 +247,17 @@ void loop() {
       }
 
       if(state==0) state=1;
-      if(state==3) state=4;
+//      if(state==3) state=4;
       if(global_rmc.time_utc.second==0&&state>1)   // start of minute
       {
         if((global_rmc.time_utc.minute%2)==0)   // every second minute
         {
+          ITimer0.attachInterruptInterval(WSPR_DELAY * 1000, TimerHandler0);
           state=3;    // start WSPR transmission
         }
       }
     }
-    if(state==3) encode();    // send WSPR data
+//    if(state==3) encode();    // send WSPR data
 
     DOG.clear();
     if(state>0)
@@ -228,4 +282,9 @@ void onRmcUpdate(nmea::RmcData const rmc)
 {
   global_rmc=rmc;
   flag_rmc=1;
+}
+
+void TimerHandler0()
+{
+  flag_timer=1;
 }
