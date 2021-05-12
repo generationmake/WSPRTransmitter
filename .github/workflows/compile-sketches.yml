@@ -57,9 +57,9 @@ jobs:
           libraries: |
             - source-url: https://github.com/generationmake/DogGraphicDisplay
             - name: 107-Arduino-NMEA-Parser
-            - name: TimeLib
-            - name: si5351
-            - name: JTEncode
+            - name: Geek Factory TimeLib Library
+            - name: Adafruit Si5351 Library
+            - name: Etherkit JTEncode
           sketch-paths: |
             - ${{ github.workspace }}
           enable-deltas-report: true
