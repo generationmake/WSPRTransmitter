@@ -55,7 +55,7 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           libraries: |
-            - name: DogGraphicDisplay
+            - source-url: https://github.com/generationmake/DogGraphicDisplay
             - name: 107-Arduino-NMEA
             - name: TimeLib
             - name: si5351
