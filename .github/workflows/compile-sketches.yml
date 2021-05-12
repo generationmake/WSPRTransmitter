@@ -55,9 +55,11 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           libraries: |
-            - name: 107-Arduino-Debug
-            - name: 107-Arduino-MCP2515
-            - name: 107-Arduino-UAVCAN
+            - name: DogGraphicDisplay
+            - name: 107-Arduino-NMEA
+            - name: TimeLib
+            - name: si5351
+            - name: JTEncode
           sketch-paths: |
             - ${{ github.workspace }}
           enable-deltas-report: true
