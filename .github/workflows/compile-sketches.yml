@@ -42,7 +42,7 @@ jobs:
         board:
           - fqbn: adafruit:samd:adafruit_feather_m0
             platforms: |
-              - name: "adafruit:samd"
+              - name: adafruit:samd
               - source-url: https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
 
     steps:
