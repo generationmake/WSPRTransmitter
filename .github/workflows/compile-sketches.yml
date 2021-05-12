@@ -56,7 +56,7 @@ jobs:
           platforms: ${{ matrix.board.platforms }}
           libraries: |
             - source-url: https://github.com/generationmake/DogGraphicDisplay
-            - name: 107-Arduino-NMEA
+            - name: 107-Arduino-NMEA-Parser
             - name: TimeLib
             - name: si5351
             - name: JTEncode
