@@ -22,9 +22,12 @@
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
 #define WSPR_DELAY              683          // Delay value for WSPR
 
-#define WSPR_DEFAULT_FREQ       28123800ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_DEFAULT_FREQ       28126200ULL    // 1600 Hz higher than dial freq
-//#define WSPR_DEFAULT_FREQ       50294600ULL    // 1600 Hz higher than dial freq
+#define WSPR_FREQ_10M      28123800ULL    // 1600 Hz higher than dial freq, freq corrected
+//#define WSPR_FREQ_10M    28126200ULL    // 1600 Hz higher than dial freq
+#define WSPR_FREQ_6M       50290220ULL    // 1600 Hz higher than dial freq, freq corrected
+//#define WSPR_FREQ_6M     50294600ULL    // 1600 Hz higher than dial freq
+#define WSPR_FREQ_4M       70086470ULL    // 1600 Hz higher than dial freq, freq corrected
+//#define WSPR_FREQ_4M     70092600ULL    // 1600 Hz higher than dial freq
 
 // Class instantiation
 Si5351 si5351;
@@ -189,7 +192,7 @@ void setup() {
 
   // Set the proper frequency, tone spacing, symbol count, and
   // tone delay depending on mode
-  freq = WSPR_DEFAULT_FREQ;
+  freq = WSPR_FREQ_6M;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
   tone_delay = WSPR_DELAY;
@@ -206,6 +209,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
+  static int freq_cycle=0;
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -215,6 +219,10 @@ void loop() {
     flag_timer=0;
     if(state==3) 
     {
+      freq_cycle++;
+      if(freq_cycle>=2) freq_cycle=0;
+      if(freq_cycle==0) freq = WSPR_FREQ_6M;
+      if(freq_cycle==1) freq = WSPR_FREQ_4M;
       handle_wspr_tx(1);  // init wspr transmission
       state=4;
     }
@@ -262,12 +270,14 @@ void loop() {
     DOG.clear();
     if(state>0)
     {
-      DOG.string(0,2,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_CENTER); // print time
-      DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_CENTER); // print date
+      DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
+      DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
     }
     else DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
     if(state>1)
     {
+      String freq_str((unsigned int)freq);
+      DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
       DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
     }
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
