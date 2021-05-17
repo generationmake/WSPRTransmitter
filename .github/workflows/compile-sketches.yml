@@ -1,0 +1,73 @@
+name: Compile Sketch
+
+# See: https://docs.github.com/en/free-pro-team@latest/actions/reference/events-that-trigger-workflows
+on:
+  pull_request:
+    paths-ignore:
+      - ".github/**"
+      - "!.github/workflows/compile-sketches.yml"
+      - "data/**"
+      - "**.adoc"
+      - "**.jpg"
+      - "**.md"
+      - "**.png"
+      - "**.txt"
+  push:
+    paths-ignore:
+      - ".github/**"
+      - "!.github/workflows/compile-sketches.yml"
+      - "data/**"
+      - "**.adoc"
+      - "**.jpg"
+      - "**.md"
+      - "**.png"
+      - "**.txt"
+  schedule:
+    # Run every Saturday at 6 AM UTC to catch breakage caused by changes to external resources (libraries, platforms).
+    - cron: "0 6 * * SAT"
+  workflow_dispatch:
+  repository_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      SKETCHES_REPORTS_PATH: sketches-reports
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        board:
+          - fqbn: adafruit:samd:adafruit_feather_m0
+            platforms: |
+              - name: "adafruit:samd"
+                source-url: https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Compile examples
+        uses: arduino/compile-sketches@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fqbn: ${{ matrix.board.fqbn }}
+          platforms: ${{ matrix.board.platforms }}
+          libraries: |
+            - source-url: https://github.com/generationmake/DogGraphicDisplay.git
+            - source-url: https://github.com/PaulStoffregen/Time.git
+            - source-url: https://github.com/etherkit/Si5351Arduino.git
+            - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser.git
+            - source-url: https://github.com/etherkit/JTEncode.git
+            - source-url: https://github.com/khoih-prog/SAMD_TimerInterrupt.git
+          sketch-paths: |
+            - ${{ github.workspace }}
+          enable-deltas-report: true
+          sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
+
+      - name: Save memory usage change report as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ env.SKETCHES_REPORTS_PATH }}
+          name: ${{ env.SKETCHES_REPORTS_PATH }}
