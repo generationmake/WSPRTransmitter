@@ -56,8 +56,8 @@ jobs:
           platforms: ${{ matrix.board.platforms }}
           libraries: |
             - source-url: https://github.com/generationmake/DogGraphicDisplay
+            - source-url: https://github.com/PaulStoffregen/Time
             - name: 107-Arduino-NMEA-Parser
-            - name: TimeLib
             - name: si5351
             - name: JTEncode
           sketch-paths: |
