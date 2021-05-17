@@ -57,8 +57,8 @@ jobs:
           libraries: |
             - source-url: https://github.com/generationmake/DogGraphicDisplay
             - source-url: https://github.com/PaulStoffregen/Time
+            - source-url: https://github.com/adafruit/Adafruit_Si5351_Library
             - name: 107-Arduino-NMEA-Parser
-            - name: si5351
             - name: JTEncode
           sketch-paths: |
             - ${{ github.workspace }}
