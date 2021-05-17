@@ -55,11 +55,11 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           libraries: |
-            - source-url: https://github.com/generationmake/DogGraphicDisplay
-            - source-url: https://github.com/PaulStoffregen/Time
-            - source-url: https://github.com/adafruit/Adafruit_Si5351_Library
-            - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser
-            - source-url: https://github.com/etherkit/JTEncode
+            - source-url: https://github.com/generationmake/DogGraphicDisplay.git
+            - source-url: https://github.com/PaulStoffregen/Time.git
+            - source-url: https://github.com/adafruit/Adafruit_Si5351_Library.git
+            - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser.git
+            - source-url: https://github.com/etherkit/JTEncode.git
           sketch-paths: |
             - ${{ github.workspace }}
           enable-deltas-report: true
