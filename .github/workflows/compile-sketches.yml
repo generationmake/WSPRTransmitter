@@ -60,6 +60,7 @@ jobs:
             - source-url: https://github.com/etherkit/Si5351Arduino.git
             - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser.git
             - source-url: https://github.com/etherkit/JTEncode.git
+            - source-url: https://github.com/khoih-prog/SAMD_TimerInterrupt.git
           sketch-paths: |
             - ${{ github.workspace }}
           enable-deltas-report: true
