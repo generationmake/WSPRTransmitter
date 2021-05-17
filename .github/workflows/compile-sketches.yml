@@ -57,7 +57,7 @@ jobs:
           libraries: |
             - source-url: https://github.com/generationmake/DogGraphicDisplay.git
             - source-url: https://github.com/PaulStoffregen/Time.git
-            - source-url: https://github.com/adafruit/Adafruit_Si5351_Library.git
+            - source-url: https://github.com/etherkit/Si5351Arduino.git
             - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser.git
             - source-url: https://github.com/etherkit/JTEncode.git
           sketch-paths: |
