@@ -58,8 +58,8 @@ jobs:
             - source-url: https://github.com/generationmake/DogGraphicDisplay
             - source-url: https://github.com/PaulStoffregen/Time
             - source-url: https://github.com/adafruit/Adafruit_Si5351_Library
-            - name: 107-Arduino-NMEA-Parser
-            - name: JTEncode
+            - source-url: https://github.com/107-systems/107-Arduino-NMEA-Parser
+            - source-url: https://github.com/etherkit/JTEncode
           sketch-paths: |
             - ${{ github.workspace }}
           enable-deltas-report: true
