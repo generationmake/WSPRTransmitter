@@ -28,6 +28,8 @@
 //#define WSPR_FREQ_6M     50294600ULL    // 1600 Hz higher than dial freq
 #define WSPR_FREQ_4M       70086470ULL    // 1600 Hz higher than dial freq, freq corrected
 //#define WSPR_FREQ_4M     70092600ULL    // 1600 Hz higher than dial freq
+#define WSPR_FREQ_2M      144478000ULL    // 1600 Hz higher than dial freq, freq corrected
+//#define WSPR_FREQ_2M    144490600ULL    // 1600 Hz higher than dial freq
 
 // Class instantiation
 Si5351 si5351;
@@ -35,6 +37,7 @@ JTEncode jtencode;
 
 // Global variables
 unsigned long long freq;
+unsigned int channel;
 char call[] = "N0CALL";
 char loc[] = "AA00";
 uint8_t dbm = 10;
@@ -74,19 +77,23 @@ const char *maidenhead(float lon, float lat)
 bool handle_wspr_tx(bool start_new)
 {
   static uint8_t i;
+  static uint8_t channelint=0;
 
   if(start_new==true)
   {
     i=0;
+    channelint=channel;
     // Reset the tone to the base frequency and turn on the output
-    si5351.output_enable(SI5351_CLK0, 1);
+    if(channelint==0) si5351.output_enable(SI5351_CLK0, 1);
+    if(channelint==1) si5351.output_enable(SI5351_CLK1, 1);
   //  digitalWrite(LED_BUILTIN, HIGH);
   }
 
   if(i < symbol_count)
   {
     unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
-    si5351.set_freq(jf, SI5351_CLK0);
+    if(channelint==0) si5351.set_freq(jf, SI5351_CLK0);
+    if(channelint==1) si5351.set_freq(jf, SI5351_CLK1);
 //    delay(tone_delay);
     i++;
     return true;
@@ -94,7 +101,8 @@ bool handle_wspr_tx(bool start_new)
   else
   {
   // Turn off the output
-    si5351.output_enable(SI5351_CLK0, 0);
+    if(channelint==0) si5351.output_enable(SI5351_CLK0, 0);
+    if(channelint==1) si5351.output_enable(SI5351_CLK1, 0);
 //  digitalWrite(LED_BUILTIN, LOW);
     return false;
   }
@@ -193,6 +201,7 @@ void setup() {
   // Set the proper frequency, tone spacing, symbol count, and
   // tone delay depending on mode
   freq = WSPR_FREQ_6M;
+  channel = 0;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
   tone_delay = WSPR_DELAY;
@@ -200,6 +209,10 @@ void setup() {
   // Set CLK0 output
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
   si5351.output_enable(SI5351_CLK0, 0); // Disable the clock initially
+
+  // Set CLK1 output
+  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_8MA); // Set for max power if desired
+  si5351.output_enable(SI5351_CLK1, 0); // Disable the clock initially
 
   // Encode the message in the transmit buffer
   // This is RAM intensive and should be done separately from other subroutines
@@ -220,9 +233,22 @@ void loop() {
     if(state==3) 
     {
       freq_cycle++;
-      if(freq_cycle>=2) freq_cycle=0;
-      if(freq_cycle==0) freq = WSPR_FREQ_6M;
-      if(freq_cycle==1) freq = WSPR_FREQ_4M;
+      if(freq_cycle>=3) freq_cycle=0;
+      if(freq_cycle==0) 
+      {
+        freq = WSPR_FREQ_6M;
+        channel = 0;
+      }
+      if(freq_cycle==1)
+      {
+        freq = WSPR_FREQ_4M;
+        channel = 0;
+      }
+      if(freq_cycle==2)
+      {
+        freq = WSPR_FREQ_2M;
+        channel = 1;
+      }
       handle_wspr_tx(1);  // init wspr transmission
       state=4;
     }
@@ -278,6 +304,8 @@ void loop() {
     {
       String freq_str((unsigned int)freq);
       DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
+      String channel_str((unsigned int)channel);
+      DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
       DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
     }
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
