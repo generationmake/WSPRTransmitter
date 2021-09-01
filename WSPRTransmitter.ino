@@ -1,5 +1,28 @@
 /* 
  *  Arduino Sketch WSPR transmitter with Si5351 on Adafruit Feather M0
+ *  
+ *  WSPR transmit state machine
+ *  state 0: after startup, no GPS fix
+ *    |
+ *    | GPS clock fix
+ *    V
+ *  state 1: GPS clock fix, show time and date in display
+ *    |
+ *    | GPS location fix
+ *    V
+ *  state 2: generate WSPR message
+ *    |
+ *    | second 0 of every second minute
+ *    V
+ *  state 3: start WSPR transmission
+ *    |
+ *    | WSPR transmission initialized
+ *    V
+ *  state 4: WSPR transmission
+ *    |
+ *    | WSPR transmission finished
+ *    V
+ *  state 2: load next frequency settings
  */
 #include <DogGraphicDisplay.h>
 #include <ArduinoNmeaParser.h>
@@ -283,8 +306,7 @@ void loop() {
         state=2;
       }
 
-      if(state==0) state=1;
-//      if(state==3) state=4;
+      if(state==0) state=1;   // gps clock is fixed
       if(global_rmc.time_utc.second==0&&state>1)   // start of minute
       {
         if((global_rmc.time_utc.minute%2)==0)   // every second minute
@@ -294,16 +316,15 @@ void loop() {
         }
       }
     }
-//    if(state==3) encode();    // send WSPR data
 
     DOG.clear();
-    if(state>0)
+    if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
+    if(state>=1)    // clock fix
     {
       DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
       DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
     }
-    else DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
-    if(state>1)
+    if(state>=2)    // ready to send
     {
       String freq_str((unsigned int)freq);
       DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
@@ -311,6 +332,7 @@ void loop() {
       DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
       DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
     }
+    if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
     if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
     if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
