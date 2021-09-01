@@ -22,14 +22,21 @@
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
 #define WSPR_DELAY              683          // Delay value for WSPR
 
-#define WSPR_FREQ_10M      28123800ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_FREQ_10M    28126200ULL    // 1600 Hz higher than dial freq
-#define WSPR_FREQ_6M       50290220ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_FREQ_6M     50294600ULL    // 1600 Hz higher than dial freq
-#define WSPR_FREQ_4M       70086470ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_FREQ_4M     70092600ULL    // 1600 Hz higher than dial freq
-#define WSPR_FREQ_2M      144478400ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_FREQ_2M    144490600ULL    // 1600 Hz higher than dial freq
+struct freq_set_t
+{
+  unsigned long long freq;
+  unsigned int channel;
+  unsigned int pre_tune;
+};
+
+freq_set_t wsprfreqs[]={
+// freq         channel       pre_tune   
+//  { 28123800ULL,   2,             0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 50290220ULL,   0,             0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 70086470ULL,   0,             0},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL,   1,             1},     //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL,   1,             1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+};
 
 // Class instantiation
 Si5351 si5351;
@@ -201,9 +208,9 @@ void setup() {
 
   // Set the proper frequency, tone spacing, symbol count, and
   // tone delay depending on mode
-  freq = WSPR_FREQ_6M;
-  channel = 0;
-  pre_tune = 0;
+  freq = wsprfreqs[0].freq;
+  channel = wsprfreqs[0].channel;
+  pre_tune = wsprfreqs[0].pre_tune;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
   tone_delay = WSPR_DELAY;
@@ -245,24 +252,9 @@ void loop() {
         ITimer0.disableTimer(); // stop timer
         freq_cycle++;
         if(freq_cycle>=4) freq_cycle=0;
-        if(freq_cycle==0) 
-        {
-          freq = WSPR_FREQ_6M;
-          channel = 0;
-          pre_tune = 0;
-        }
-        if(freq_cycle==1)
-        {
-          freq = WSPR_FREQ_4M;
-          channel = 0;
-          pre_tune = 0;
-        }
-        if((freq_cycle==2)||(freq_cycle==3))
-        {
-          freq = WSPR_FREQ_2M;
-          channel = 1;
-          pre_tune = 1;
-        }
+        freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
+        channel =  wsprfreqs[freq_cycle].channel;
+        pre_tune =  wsprfreqs[freq_cycle].pre_tune;
         if(pre_tune==1)
         {
           if(channel==0) si5351.output_enable(SI5351_CLK0, 1);
