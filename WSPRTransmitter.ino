@@ -28,7 +28,7 @@
 //#define WSPR_FREQ_6M     50294600ULL    // 1600 Hz higher than dial freq
 #define WSPR_FREQ_4M       70086470ULL    // 1600 Hz higher than dial freq, freq corrected
 //#define WSPR_FREQ_4M     70092600ULL    // 1600 Hz higher than dial freq
-#define WSPR_FREQ_2M      144478000ULL    // 1600 Hz higher than dial freq, freq corrected
+#define WSPR_FREQ_2M      144478400ULL    // 1600 Hz higher than dial freq, freq corrected
 //#define WSPR_FREQ_2M    144490600ULL    // 1600 Hz higher than dial freq
 
 // Class instantiation
@@ -38,6 +38,7 @@ JTEncode jtencode;
 // Global variables
 unsigned long long freq;
 unsigned int channel;
+unsigned int pre_tune;
 char call[] = "N0CALL";
 char loc[] = "AA00";
 uint8_t dbm = 10;
@@ -202,6 +203,7 @@ void setup() {
   // tone delay depending on mode
   freq = WSPR_FREQ_6M;
   channel = 0;
+  pre_tune = 0;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
   tone_delay = WSPR_DELAY;
@@ -232,23 +234,6 @@ void loop() {
     flag_timer=0;
     if(state==3) 
     {
-      freq_cycle++;
-      if(freq_cycle>=3) freq_cycle=0;
-      if(freq_cycle==0) 
-      {
-        freq = WSPR_FREQ_6M;
-        channel = 0;
-      }
-      if(freq_cycle==1)
-      {
-        freq = WSPR_FREQ_4M;
-        channel = 0;
-      }
-      if(freq_cycle==2)
-      {
-        freq = WSPR_FREQ_2M;
-        channel = 1;
-      }
       handle_wspr_tx(1);  // init wspr transmission
       state=4;
     }
@@ -258,6 +243,33 @@ void loop() {
       {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
+        freq_cycle++;
+        if(freq_cycle>=4) freq_cycle=0;
+        if(freq_cycle==0) 
+        {
+          freq = WSPR_FREQ_6M;
+          channel = 0;
+          pre_tune = 0;
+        }
+        if(freq_cycle==1)
+        {
+          freq = WSPR_FREQ_4M;
+          channel = 0;
+          pre_tune = 0;
+        }
+        if((freq_cycle==2)||(freq_cycle==3))
+        {
+          freq = WSPR_FREQ_2M;
+          channel = 1;
+          pre_tune = 1;
+        }
+        if(pre_tune==1)
+        {
+          if(channel==0) si5351.output_enable(SI5351_CLK0, 1);
+          if(channel==1) si5351.output_enable(SI5351_CLK1, 1);
+          if(channel==0) si5351.set_freq(freq*100ULL, SI5351_CLK0);
+          if(channel==1) si5351.set_freq(freq*100ULL, SI5351_CLK1);
+        }
       }
     }
   }
