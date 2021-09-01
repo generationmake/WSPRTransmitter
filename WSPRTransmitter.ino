@@ -25,17 +25,17 @@
 struct freq_set_t
 {
   unsigned long long freq;
-  unsigned int channel;
+  enum si5351_clock clk;
   unsigned int pre_tune;
 };
 
 freq_set_t wsprfreqs[]={
-// freq         channel       pre_tune   
-//  { 28123800ULL,   2,             0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 50290220ULL,   0,             0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 70086470ULL,   0,             0},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
-  {144478400ULL,   1,             1},     //  2 meter band, 1600 Hz higher than dial freq, freq corrected
-  {144478400ULL,   1,             1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+// freq          clk          pre_tune
+  { 28123800ULL, SI5351_CLK2,        0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 50290220ULL, SI5351_CLK0,        0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 70086470ULL, SI5351_CLK0,        0},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL, SI5351_CLK1,        1},     //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL, SI5351_CLK1,        1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
 };
 
 // Class instantiation
@@ -44,7 +44,7 @@ JTEncode jtencode;
 
 // Global variables
 unsigned long long freq;
-unsigned int channel;
+enum si5351_clock clk;
 unsigned int pre_tune;
 char call[] = "N0CALL";
 char loc[] = "AA00";
@@ -85,23 +85,21 @@ const char *maidenhead(float lon, float lat)
 bool handle_wspr_tx(bool start_new)
 {
   static uint8_t i;
-  static uint8_t channelint=0;
+  static enum si5351_clock clkint=clk;
 
   if(start_new==true)
   {
     i=0;
-    channelint=channel;
+    clkint=clk;
     // Reset the tone to the base frequency and turn on the output
-    if(channelint==0) si5351.output_enable(SI5351_CLK0, 1);
-    if(channelint==1) si5351.output_enable(SI5351_CLK1, 1);
+    si5351.output_enable(clkint, 1);
   //  digitalWrite(LED_BUILTIN, HIGH);
   }
 
   if(i < symbol_count)
   {
     unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
-    if(channelint==0) si5351.set_freq(jf, SI5351_CLK0);
-    if(channelint==1) si5351.set_freq(jf, SI5351_CLK1);
+    si5351.set_freq(jf, clkint);
 //    delay(tone_delay);
     i++;
     return true;
@@ -109,8 +107,7 @@ bool handle_wspr_tx(bool start_new)
   else
   {
   // Turn off the output
-    if(channelint==0) si5351.output_enable(SI5351_CLK0, 0);
-    if(channelint==1) si5351.output_enable(SI5351_CLK1, 0);
+    si5351.output_enable(clkint, 0);
 //  digitalWrite(LED_BUILTIN, LOW);
     return false;
   }
@@ -209,7 +206,7 @@ void setup() {
   // Set the proper frequency, tone spacing, symbol count, and
   // tone delay depending on mode
   freq = wsprfreqs[0].freq;
-  channel = wsprfreqs[0].channel;
+  clk = wsprfreqs[0].clk;
   pre_tune = wsprfreqs[0].pre_tune;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
@@ -222,6 +219,10 @@ void setup() {
   // Set CLK1 output
   si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_8MA); // Set for max power if desired
   si5351.output_enable(SI5351_CLK1, 0); // Disable the clock initially
+
+  // Set CLK2 output
+  si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA); // Set for max power if desired
+  si5351.output_enable(SI5351_CLK2, 0); // Disable the clock initially
 
   // Encode the message in the transmit buffer
   // This is RAM intensive and should be done separately from other subroutines
@@ -253,14 +254,12 @@ void loop() {
         freq_cycle++;
         if(freq_cycle>=4) freq_cycle=0;
         freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
-        channel =  wsprfreqs[freq_cycle].channel;
+        clk =  wsprfreqs[freq_cycle].clk;
         pre_tune =  wsprfreqs[freq_cycle].pre_tune;
         if(pre_tune==1)
         {
-          if(channel==0) si5351.output_enable(SI5351_CLK0, 1);
-          if(channel==1) si5351.output_enable(SI5351_CLK1, 1);
-          if(channel==0) si5351.set_freq(freq*100ULL, SI5351_CLK0);
-          if(channel==1) si5351.set_freq(freq*100ULL, SI5351_CLK1);
+          si5351.output_enable(clk, 1);
+          si5351.set_freq(freq*100ULL, clk);
         }
       }
     }
@@ -308,7 +307,7 @@ void loop() {
     {
       String freq_str((unsigned int)freq);
       DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
-      String channel_str((unsigned int)channel);
+      String channel_str((unsigned int)clk);
       DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
       DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
     }
