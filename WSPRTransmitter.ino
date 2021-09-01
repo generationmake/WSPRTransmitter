@@ -275,7 +275,7 @@ void loop() {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
         freq_cycle++;
-        if(freq_cycle>=4) freq_cycle=0;
+        if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
         freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
         clk =  wsprfreqs[freq_cycle].clk;
         pre_tune =  wsprfreqs[freq_cycle].pre_tune;
