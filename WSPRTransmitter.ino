@@ -55,10 +55,10 @@ struct freq_set_t
 freq_set_t wsprfreqs[]={
 // freq          clk          pre_tune
   { 28123800ULL, SI5351_CLK2,        0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 50290220ULL, SI5351_CLK0,        0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 70086470ULL, SI5351_CLK0,        0},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
-  {144478400ULL, SI5351_CLK1,        1},     //  2 meter band, 1600 Hz higher than dial freq, freq corrected
-  {144478400ULL, SI5351_CLK1,        1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 50290220ULL, SI5351_CLK1,        0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 70086470ULL, SI5351_CLK1,        0},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL, SI5351_CLK0,        1},     //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144478400ULL, SI5351_CLK0,        1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
 };
 
 // Class instantiation
