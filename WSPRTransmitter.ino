@@ -75,7 +75,7 @@ char loc[] = "AA00";
 uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
-uint16_t tone_delay, tone_spacing;
+uint16_t tone_spacing;
 
 #define BACKLIGHTPIN 10
 
@@ -124,7 +124,6 @@ bool handle_wspr_tx(bool start_new)
   {
     unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
     si5351.set_freq(jf, clkint);
-//    delay(tone_delay);
     i++;
     return true;
   }
@@ -135,26 +134,6 @@ bool handle_wspr_tx(bool start_new)
 //  digitalWrite(LED_BUILTIN, LOW);
     return false;
   }
-}
-// Loop through the string, transmitting one character at a time.
-void encode()
-{
-  uint8_t i;
-
-  // Reset the tone to the base frequency and turn on the output
-  si5351.output_enable(SI5351_CLK0, 1);
-//  digitalWrite(LED_BUILTIN, HIGH);
-
-  for(i = 0; i < symbol_count; i++)
-  {
-    unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
-    si5351.set_freq(jf, SI5351_CLK0);
-    delay(tone_delay);
-  }
-
-  // Turn off the output
-  si5351.output_enable(SI5351_CLK0, 0);
-//  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void set_tx_buffer()
@@ -234,7 +213,6 @@ void setup() {
   pre_tune = wsprfreqs[0].pre_tune;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
-  tone_delay = WSPR_DELAY;
 
   // Set CLK0 output
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
@@ -247,10 +225,6 @@ void setup() {
   // Set CLK2 output
   si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA); // Set for max power if desired
   si5351.output_enable(SI5351_CLK2, 0); // Disable the clock initially
-
-  // Encode the message in the transmit buffer
-  // This is RAM intensive and should be done separately from other subroutines
-//  set_tx_buffer();
 }
 
 void loop() {
@@ -303,6 +277,8 @@ void loop() {
         loc[1]=locatorbuf[1];
         loc[2]=locatorbuf[2];
         loc[3]=locatorbuf[3];
+  // Encode the message in the transmit buffer
+  // This is RAM intensive and should be done separately from other subroutines
         set_tx_buffer();
         state=2;
       }
