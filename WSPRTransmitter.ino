@@ -191,9 +191,11 @@ void setup() {
   pinMode(BACKLIGHTPIN, OUTPUT);   // set backlight pin to output
   digitalWrite(BACKLIGHTPIN, HIGH);
 
-  DOG.begin(A1,0,0,A3,A2,DOGM132);   //CS = A1, 0,0= use Hardware SPI, A0 = A3, RESET = A2, EA DOGM132-5 (=132x32 dots)
+  pinMode(SCK, OUTPUT);   // set spi pin to output
+  pinMode(MOSI, OUTPUT);   // set spi pin to output
+  DOG.begin(&SPI,A1,A3,A2,DOGM132);   //Hardware-SPI, CS = A1, A0 = A3, RESET = A2, EA DOGM132-5 (=132x32 dots)
   DOG.clear();
-  DOG.createCanvas(128, 64, 0, 0, 1);  // Canvas in buffered mode
+//  DOG.createCanvas(128, 64, 0, 0, 1);  // Canvas in buffered mode
 
   DOG.string(0,0,UBUNTUMONO_B_16,"WSPR init ",ALIGN_CENTER); // print "SunPathClock" in line 3, centered
   DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 5 
