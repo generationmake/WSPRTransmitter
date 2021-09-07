@@ -1,5 +1,28 @@
 /* 
  *  Arduino Sketch WSPR transmitter with Si5351 on Adafruit Feather M0
+ *  
+ *  WSPR transmit state machine
+ *  state 0: after startup, no GPS fix
+ *    |
+ *    | GPS clock fix
+ *    V
+ *  state 1: GPS clock fix, show time and date in display
+ *    |
+ *    | GPS location fix
+ *    V
+ *  state 2: generate WSPR message
+ *    |
+ *    | second 0 of every second minute
+ *    V
+ *  state 3: start WSPR transmission
+ *    |
+ *    | WSPR transmission initialized
+ *    V
+ *  state 4: WSPR transmission
+ *    |
+ *    | WSPR transmission finished
+ *    V
+ *  state 2: load next frequency settings
  */
 #include <DogGraphicDisplay.h>
 #include <ArduinoNmeaParser.h>
@@ -22,9 +45,22 @@
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
 #define WSPR_DELAY              683          // Delay value for WSPR
 
-#define WSPR_DEFAULT_FREQ       28123800ULL    // 1600 Hz higher than dial freq, freq corrected
-//#define WSPR_DEFAULT_FREQ       28126200ULL    // 1600 Hz higher than dial freq
-//#define WSPR_DEFAULT_FREQ       50294600ULL    // 1600 Hz higher than dial freq
+struct freq_set_t
+{
+  unsigned long long freq;
+  enum si5351_clock clk;
+  unsigned int pre_tune;
+};
+
+freq_set_t wsprfreqs[]={
+// freq          clk          pre_tune
+  { 21094600ULL, SI5351_CLK2,        0},     // 15 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 24924600ULL, SI5351_CLK2,        0},     // 12 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 28124600ULL, SI5351_CLK2,        0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 50291620ULL, SI5351_CLK1,        0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 70088670ULL, SI5351_CLK1,        1},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144482200ULL, SI5351_CLK0,        1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+};
 
 // Class instantiation
 Si5351 si5351;
@@ -32,12 +68,14 @@ JTEncode jtencode;
 
 // Global variables
 unsigned long long freq;
+enum si5351_clock clk;
+unsigned int pre_tune;
 char call[] = "N0CALL";
 char loc[] = "AA00";
 uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
-uint16_t tone_delay, tone_spacing;
+uint16_t tone_spacing;
 
 #define BACKLIGHTPIN 10
 
@@ -71,50 +109,31 @@ const char *maidenhead(float lon, float lat)
 bool handle_wspr_tx(bool start_new)
 {
   static uint8_t i;
+  static enum si5351_clock clkint=clk;
 
   if(start_new==true)
   {
     i=0;
+    clkint=clk;
     // Reset the tone to the base frequency and turn on the output
-    si5351.output_enable(SI5351_CLK0, 1);
+    si5351.output_enable(clkint, 1);
   //  digitalWrite(LED_BUILTIN, HIGH);
   }
 
   if(i < symbol_count)
   {
     unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
-    si5351.set_freq(jf, SI5351_CLK0);
-//    delay(tone_delay);
+    si5351.set_freq(jf, clkint);
     i++;
     return true;
   }
   else
   {
   // Turn off the output
-    si5351.output_enable(SI5351_CLK0, 0);
+    si5351.output_enable(clkint, 0);
 //  digitalWrite(LED_BUILTIN, LOW);
     return false;
   }
-}
-// Loop through the string, transmitting one character at a time.
-void encode()
-{
-  uint8_t i;
-
-  // Reset the tone to the base frequency and turn on the output
-  si5351.output_enable(SI5351_CLK0, 1);
-//  digitalWrite(LED_BUILTIN, HIGH);
-
-  for(i = 0; i < symbol_count; i++)
-  {
-    unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
-    si5351.set_freq(jf, SI5351_CLK0);
-    delay(tone_delay);
-  }
-
-  // Turn off the output
-  si5351.output_enable(SI5351_CLK0, 0);
-//  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void set_tx_buffer()
@@ -181,7 +200,7 @@ void setup() {
   // Initialize the Si5351
   // Change the 2nd parameter in init if using a ref osc other
   // than 25 MHz
-  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
+  si5351.init(SI5351_CRYSTAL_LOAD_10PF, 0, 0);
 
   // Use the Arduino's on-board LED as a keying indicator.
   pinMode(LED_BUILTIN, OUTPUT);
@@ -189,23 +208,29 @@ void setup() {
 
   // Set the proper frequency, tone spacing, symbol count, and
   // tone delay depending on mode
-  freq = WSPR_DEFAULT_FREQ;
+  freq = wsprfreqs[0].freq;
+  clk = wsprfreqs[0].clk;
+  pre_tune = wsprfreqs[0].pre_tune;
   symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
   tone_spacing = WSPR_TONE_SPACING;
-  tone_delay = WSPR_DELAY;
 
   // Set CLK0 output
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
   si5351.output_enable(SI5351_CLK0, 0); // Disable the clock initially
 
-  // Encode the message in the transmit buffer
-  // This is RAM intensive and should be done separately from other subroutines
-//  set_tx_buffer();
+  // Set CLK1 output
+  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_8MA); // Set for max power if desired
+  si5351.output_enable(SI5351_CLK1, 0); // Disable the clock initially
+
+  // Set CLK2 output
+  si5351.drive_strength(SI5351_CLK2, SI5351_DRIVE_8MA); // Set for max power if desired
+  si5351.output_enable(SI5351_CLK2, 0); // Disable the clock initially
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
+  static int freq_cycle=0;
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -224,6 +249,16 @@ void loop() {
       {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
+        freq_cycle++;
+        if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
+        freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
+        clk =  wsprfreqs[freq_cycle].clk;
+        pre_tune =  wsprfreqs[freq_cycle].pre_tune;
+        if(pre_tune==1)
+        {
+          si5351.output_enable(clk, 1);
+          si5351.set_freq(freq*100ULL, clk);
+        }
       }
     }
   }
@@ -242,12 +277,13 @@ void loop() {
         loc[1]=locatorbuf[1];
         loc[2]=locatorbuf[2];
         loc[3]=locatorbuf[3];
+  // Encode the message in the transmit buffer
+  // This is RAM intensive and should be done separately from other subroutines
         set_tx_buffer();
         state=2;
       }
 
-      if(state==0) state=1;
-//      if(state==3) state=4;
+      if(state==0) state=1;   // gps clock is fixed
       if(global_rmc.time_utc.second==0&&state>1)   // start of minute
       {
         if((global_rmc.time_utc.minute%2)==0)   // every second minute
@@ -257,19 +293,23 @@ void loop() {
         }
       }
     }
-//    if(state==3) encode();    // send WSPR data
 
     DOG.clear();
-    if(state>0)
+    if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
+    if(state>=1)    // clock fix
     {
-      DOG.string(0,2,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_CENTER); // print time
-      DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_CENTER); // print date
+      DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
+      DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
     }
-    else DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
-    if(state>1)
+    if(state>=2)    // ready to send
     {
+      String freq_str((unsigned int)freq);
+      DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
+      String channel_str((unsigned int)clk);
+      DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
       DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
     }
+    if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
     if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
     if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
