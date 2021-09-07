@@ -75,6 +75,7 @@ char loc[] = "AA00";
 uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
+uint8_t symbol_count_state=0;
 uint16_t tone_spacing;
 
 #define BACKLIGHTPIN 10
@@ -87,23 +88,8 @@ volatile time_t global_timestamp=0;
 volatile bool flag_rmc=0;
 volatile bool flag_timer=0;
 nmea::RmcData global_rmc;
-const char *locatorbuf;
 
 SAMDTimer ITimer0(TIMER_TC3);
-
-
-const char *maidenhead(float lon, float lat)
-{
-  static char locator[7]="000000";  // create buffer
-  int x, y;
-  locator[0]=(int)(lon+180.0)/20+65;
-  locator[1]=(int)(lat+90.0)/10+65;
-  locator[2]=((int)(lon+180.0)%20)/2+48;
-  locator[3]=(int)(lat+90.0)%10+48;
-  locator[4]=(int)(((lon/2+90.0)-(int)(lon/2+90.0))*24.0)+65;
-  locator[5]=(int)(((lat+90.0)-(int)(lat+90.0))*24.0)+65;
-  return locator;
-}
 
 // Loop through the string, transmitting one character at a time.
 bool handle_wspr_tx(bool start_new)
@@ -119,6 +105,7 @@ bool handle_wspr_tx(bool start_new)
     si5351.output_enable(clkint, 1);
   //  digitalWrite(LED_BUILTIN, HIGH);
   }
+  symbol_count_state=i;
 
   if(i < symbol_count)
   {
@@ -233,6 +220,7 @@ void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
   static int freq_cycle=0;
+  static char locatorbuf[]={"000000"};
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -274,7 +262,7 @@ void loop() {
 
       if (global_rmc.is_valid&&state==1)
       {
-        locatorbuf=maidenhead(global_rmc.longitude,global_rmc.latitude);
+        jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.latitude,locatorbuf);
         loc[0]=locatorbuf[0];
         loc[1]=locatorbuf[1];
         loc[2]=locatorbuf[2];
@@ -309,6 +297,11 @@ void loop() {
       DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
       String channel_str((unsigned int)clk);
       DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
+      String state_str((unsigned int)symbol_count_state);
+      DOG.string(0,2,DENSE_NUMBERS_8,state_str.c_str());
+      String statec_str((unsigned int)symbol_count);
+      DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
+      DOG.string(15,2,DENSE_NUMBERS_8,"/");
       DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
       DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
     }
