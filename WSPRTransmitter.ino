@@ -307,7 +307,8 @@ void loop() {
       DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
       String channel_str((unsigned int)clk);
       DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
-      DOG.string(0,0,UBUNTUMONO_B_16,locatorbuf, ALIGN_RIGHT); // print locator
+      DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
+      DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
     }
     if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
