@@ -262,7 +262,7 @@ void loop() {
 
       if (global_rmc.is_valid&&state==1)
       {
-        jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.latitude,locatorbuf);
+        jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
         loc[0]=locatorbuf[0];
         loc[1]=locatorbuf[1];
         loc[2]=locatorbuf[2];
@@ -285,6 +285,8 @@ void loop() {
     }
 
     DOG.clear();
+    DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
+    DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
     if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
     if(state>=1)    // clock fix
     {
@@ -302,8 +304,6 @@ void loop() {
       String statec_str((unsigned int)symbol_count);
       DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
       DOG.string(15,2,DENSE_NUMBERS_8,"/");
-      DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
-      DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
     }
     if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
     if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
