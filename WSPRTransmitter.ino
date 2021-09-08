@@ -78,7 +78,7 @@ uint8_t symbol_count;
 uint8_t symbol_count_state=0;
 uint16_t tone_spacing;
 
-#define BACKLIGHTPIN 10
+#define BACKLIGHTPIN 13
 
 void onRmcUpdate(nmea::RmcData const);
 
@@ -90,6 +90,32 @@ volatile bool flag_timer=0;
 nmea::RmcData global_rmc;
 
 SAMDTimer ITimer0(TIMER_TC3);
+
+// define some values used by the panel and buttons
+#define AIN_KEYPAD A5
+#define btnRIGHT  0
+#define btnUP     1
+#define btnDOWN   2
+#define btnLEFT   3
+#define btnSELECT 4
+#define btnNONE   5
+
+// read the buttons
+int read_LCD_buttons()
+{
+  int adc_key_in = analogRead(AIN_KEYPAD);      // read the value from the sensor 
+  // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
+  // my buttons when read are centered at these values (MKR1010): 0, 11, 162, 354, 531, 763
+  // we add approx 50 to those values and check to see if we are close
+  if (adc_key_in > 1000) return btnNONE; // We make this the 1st option for speed reasons since it will be the most likely result
+  if (adc_key_in < 50)   return btnRIGHT;  
+  if (adc_key_in < 250)  return btnUP; 
+  if (adc_key_in < 450)  return btnDOWN; 
+  if (adc_key_in < 650)  return btnLEFT; 
+  if (adc_key_in < 850)  return btnSELECT;  
+
+  return btnNONE;  // when all others fail, return this...
+}
 
 // Loop through the string, transmitting one character at a time.
 bool handle_wspr_tx(bool start_new)
@@ -103,7 +129,6 @@ bool handle_wspr_tx(bool start_new)
     clkint=clk;
     // Reset the tone to the base frequency and turn on the output
     si5351.output_enable(clkint, 1);
-  //  digitalWrite(LED_BUILTIN, HIGH);
   }
   symbol_count_state=i;
 
@@ -118,7 +143,6 @@ bool handle_wspr_tx(bool start_new)
   {
   // Turn off the output
     si5351.output_enable(clkint, 0);
-//  digitalWrite(LED_BUILTIN, LOW);
     return false;
   }
 }
@@ -221,11 +245,38 @@ void loop() {
   static int state=0;
   static int freq_cycle=0;
   static char locatorbuf[]={"000000"};
+  static int backlight_timeout=0;
+  int lcd_key=btnNONE;
+  static int millis_flag=0;
+  static int menu=0;
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
   }
-  if(flag_timer)
+  if((millis()%100)==0)
+  {
+    if(millis_flag==0) millis_flag=1;
+  }
+  else millis_flag=0;
+  if(millis_flag==1) // this is called every 100 ms
+  {
+    millis_flag=2;
+    lcd_key = read_LCD_buttons();  // read the buttons
+    if(lcd_key!=btnNONE) backlight_timeout=50;
+    if(backlight_timeout>0)   // backlight active, menu functions active
+    {
+      backlight_timeout--;
+      digitalWrite(BACKLIGHTPIN, HIGH);
+      if(lcd_key==btnUP||lcd_key==btnDOWN) menu=1;
+    }
+    else 
+    {
+      digitalWrite(BACKLIGHTPIN, LOW);
+      menu=0;
+    }
+    
+  }
+  if(flag_timer) // this is called every 683 ms when WSPR transmission is active
   {
     flag_timer=0;
     if(state==3) 
@@ -252,7 +303,7 @@ void loop() {
       }
     }
   }
-  if(flag_rmc)
+  if(flag_rmc) // this is called every time a GNSS message is decoded
   {
     flag_rmc=0;
     if(global_rmc.time_utc.hour>0)
@@ -285,31 +336,50 @@ void loop() {
     }
 
     DOG.clear();
-    DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
-    DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
-    if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
-    if(state>=1)    // clock fix
+    if(menu==1)
     {
-      DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
-      DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
+      DOG.string(0,0,DENSE_NUMBERS_8,"SETTINGS", ALIGN_LEFT);
+      DOG.string(0,1,DENSE_NUMBERS_8,"GNSS INFOS", ALIGN_LEFT);
+      DOG.string(0,2,DENSE_NUMBERS_8,"FREQUENCIES", ALIGN_LEFT);
+      DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
     }
-    if(state>=2)    // ready to send
+    else if(menu==2)
     {
-      String freq_str((unsigned int)freq);
-      DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
-      String channel_str((unsigned int)clk);
-      DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
-      String state_str((unsigned int)symbol_count_state);
-      DOG.string(0,2,DENSE_NUMBERS_8,state_str.c_str());
-      String statec_str((unsigned int)symbol_count);
-      DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
-      DOG.string(15,2,DENSE_NUMBERS_8,"/");
+      DOG.string(0,0,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
+      DOG.string(0,1,DENSE_NUMBERS_8,"WSPR TYPE", ALIGN_LEFT);
+
+      DOG.string(50,0,DENSE_NUMBERS_8,call); // print call
+      DOG.string(50,1,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
+      DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);     
     }
-    if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
-    if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
-    if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
-    if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
-    if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0 
+    else
+    {
+      DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
+      DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
+      if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
+      if(state>=1)    // clock fix
+      {
+        DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
+        DOG.string(0,3,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
+      }
+      if(state>=2)    // ready to send
+      {
+        String freq_str((unsigned int)freq);
+        DOG.string(0,2,DENSE_NUMBERS_8,freq_str.c_str(),ALIGN_CENTER);
+        String channel_str((unsigned int)clk);
+        DOG.string(0,2,DENSE_NUMBERS_8,channel_str.c_str(),ALIGN_RIGHT);
+        String state_str((unsigned int)symbol_count_state);
+        DOG.string(0,2,DENSE_NUMBERS_8,state_str.c_str());
+        String statec_str((unsigned int)symbol_count);
+        DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
+        DOG.string(15,2,DENSE_NUMBERS_8,"/");
+      }
+      if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
+      if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
+      if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
+      if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
+      if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0 
+    }
   }
 }
 
