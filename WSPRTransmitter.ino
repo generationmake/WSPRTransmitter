@@ -253,29 +253,6 @@ void loop() {
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
   }
-  if((millis()%100)==0)
-  {
-    if(millis_flag==0) millis_flag=1;
-  }
-  else millis_flag=0;
-  if(millis_flag==1) // this is called every 100 ms
-  {
-    millis_flag=2;
-    lcd_key = read_LCD_buttons();  // read the buttons
-    if(lcd_key!=btnNONE) backlight_timeout=50;
-    if(backlight_timeout>0)   // backlight active, menu functions active
-    {
-      backlight_timeout--;
-      digitalWrite(BACKLIGHTPIN, HIGH);
-      if(lcd_key==btnUP||lcd_key==btnDOWN) menu=1;
-    }
-    else 
-    {
-      digitalWrite(BACKLIGHTPIN, LOW);
-      menu=0;
-    }
-    
-  }
   if(flag_timer) // this is called every 683 ms when WSPR transmission is active
   {
     flag_timer=0;
@@ -334,7 +311,29 @@ void loop() {
         }
       }
     }
-
+  }
+  if((millis()%100)==0)
+  {
+    if(millis_flag==0) millis_flag=1;
+  }
+  else millis_flag=0;
+  if(millis_flag==1) // this is called every 100 ms
+  {
+    millis_flag=2;
+    lcd_key = read_LCD_buttons();  // read the buttons
+    if(lcd_key!=btnNONE) backlight_timeout=50;
+    if(backlight_timeout>0)   // backlight active, menu functions active
+    {
+      backlight_timeout--;
+      digitalWrite(BACKLIGHTPIN, HIGH);
+      if(lcd_key==btnUP||lcd_key==btnDOWN) menu=1;
+    }
+    else 
+    {
+      digitalWrite(BACKLIGHTPIN, LOW);
+      menu=0;
+    }
+    
     DOG.clear();
     if(menu==1)
     {
