@@ -242,16 +242,50 @@ void setup() {
   si5351.output_enable(SI5351_CLK2, 0); // Disable the clock initially
 }
 
+void generatefullcall(char *call, int prefix, int suffix, char *fullcall)
+{
+  const char* prefixstr[]={"OE","OK","ON"};
+  int j=0;
+  if(prefix>0)
+  {
+    fullcall[0]=prefixstr[prefix-1][0];
+    fullcall[1]=prefixstr[prefix-1][1];
+    if(fullcall[1]==0) j=1;
+    else j=2;
+    fullcall[j]='/';
+    j++;
+  }
+  for(int i=0;i<6;i++)
+  {
+    fullcall[j]=call[i];
+    j++;
+  }
+  if(prefix==0&&suffix>0)
+  {
+    fullcall[j]='/';
+    j++;
+    if(suffix==1) fullcall[j]='P';
+    if(suffix==2) fullcall[j]='M';
+    j++;
+  }
+  fullcall[j]=0;
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
   static int freq_cycle=0;
   static char locatorbuf[]={"000000"};
+  static char fullcall[]={"00000000000000"};
   static int backlight_timeout=0;
   int lcd_key=btnNONE;
   static int millis_flag=0;
   static int menu=0;
   static int menu_pointer=0;
+  static uint8_t prefix=0;
+  static uint8_t suffix=0;
+
+  generatefullcall(call, prefix, suffix, fullcall);
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -343,11 +377,15 @@ void loop() {
           }
         case btnRIGHT:               // right
           {
+            if(menu==2&&menu_pointer==0) if(prefix<3) prefix++;
+            if(menu==2&&menu_pointer==1) if(suffix<2) suffix++;
             if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=true;
             break;
           }
         case btnLEFT:               // left
           {
+            if(menu==2&&menu_pointer==0) if(prefix>0) prefix--;
+            if(menu==2&&menu_pointer==1) if(suffix>0) suffix--;
             if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=false;
             break;
           }
@@ -386,11 +424,20 @@ void loop() {
     }
     else if(menu==2)  // settings
     {
-      DOG.string(0,0,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
-      DOG.string(0,1,DENSE_NUMBERS_8,"WSPR TYPE", ALIGN_LEFT);
+      if(menu_pointer==0) DOG.string(0,0,DENSE_NUMBERS_8,"PREFIX", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,0,DENSE_NUMBERS_8,"PREFIX", ALIGN_LEFT);
+      if(menu_pointer==1) DOG.string(0,1,DENSE_NUMBERS_8,"SUFFIX", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,1,DENSE_NUMBERS_8,"SUFFIX", ALIGN_LEFT);
+      String prefix_str(prefix);
+      DOG.string(40,0,DENSE_NUMBERS_8,prefix_str.c_str());
+      String suffix_str(suffix);
+      DOG.string(40,1,DENSE_NUMBERS_8,suffix_str.c_str());
 
-      DOG.string(70,0,DENSE_NUMBERS_8,call); // print call
-      DOG.string(70,1,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
+      DOG.string(0,2,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
+
+      DOG.string(40,2,DENSE_NUMBERS_8,fullcall); // print call
+      if(prefix>0||suffix>0) DOG.string(90,2,DENSE_NUMBERS_8,"TYPE 2+3"); // print type 1
+      else DOG.string(90,2,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
       if(menu_pointer>1) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
       else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
     }
@@ -435,7 +482,7 @@ void loop() {
     else
     {
       DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
-      DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
+      DOG.string(0,1,DENSE_NUMBERS_8,fullcall, ALIGN_RIGHT); // print call
       if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
       if(state>=1)    // clock fix
       {
