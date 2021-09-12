@@ -52,16 +52,17 @@ struct freq_set_t
   unsigned long long freq;
   enum si5351_clock clk;
   unsigned int pre_tune;
+  bool active;
 };
 
 freq_set_t wsprfreqs[]={
-// freq          clk          pre_tune
-  { 21094600ULL, SI5351_CLK2,        0},     // 15 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 24924600ULL, SI5351_CLK2,        0},     // 12 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 28124600ULL, SI5351_CLK2,        0},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 50291620ULL, SI5351_CLK1,        0},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
-  { 70088670ULL, SI5351_CLK1,        1},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
-  {144482200ULL, SI5351_CLK0,        1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
+// freq          clk          pre_tune  active
+  { 21094600ULL, SI5351_CLK2,        0,      1},     // 15 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 24924600ULL, SI5351_CLK2,        0,      1},     // 12 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 28124600ULL, SI5351_CLK2,        0,      1},     // 10 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 50291620ULL, SI5351_CLK1,        0,      1},     //  6 meter band, 1600 Hz higher than dial freq, freq corrected
+  { 70088670ULL, SI5351_CLK1,        1,      1},     //  4 meter band, 1600 Hz higher than dial freq, freq corrected
+  {144482200ULL, SI5351_CLK0,        1,      1}      //  2 meter band, 1600 Hz higher than dial freq, freq corrected
 };
 
 // Class instantiation
@@ -270,8 +271,11 @@ void loop() {
       {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
-        freq_cycle++;
-        if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
+        do
+        {
+          freq_cycle++;
+          if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
+        } while(wsprfreqs[freq_cycle].active==false);
         freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
         clk =  wsprfreqs[freq_cycle].clk;
         pre_tune =  wsprfreqs[freq_cycle].pre_tune;
@@ -344,6 +348,16 @@ void loop() {
           }
         case btnRIGHT:               // right
           {
+            if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=true;
+            break;
+          }
+        case btnLEFT:               // left
+          {
+            if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=false;
+            break;
+          }
+        case btnSELECT:               // select
+          {
             if(menu==1&&menu_pointer==0) menu=2;
             else if(menu==1&&menu_pointer==1) menu=3;
             else if(menu==1&&menu_pointer==2) menu=4;
@@ -412,6 +426,8 @@ void loop() {
           DOG.string(60,i,DENSE_NUMBERS_8,channel_str.c_str());
           String pre_tune_str((unsigned int)wsprfreqs[i+4*(menu_pointer/4)].pre_tune);
           DOG.string(70,i,DENSE_NUMBERS_8,pre_tune_str.c_str());
+          String active_str((unsigned int)wsprfreqs[i+4*(menu_pointer/4)].active);
+          DOG.string(100,i,DENSE_NUMBERS_8,active_str.c_str());
         }
         else
         {
