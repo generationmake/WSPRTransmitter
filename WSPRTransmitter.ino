@@ -45,6 +45,8 @@
 #define WSPR_TONE_SPACING       146          // ~1.46 Hz
 #define WSPR_DELAY              683          // Delay value for WSPR
 
+#define MENU_SLEEP 80
+
 struct freq_set_t
 {
   unsigned long long freq;
@@ -249,6 +251,7 @@ void loop() {
   int lcd_key=btnNONE;
   static int millis_flag=0;
   static int menu=0;
+  static int menu_pointer=0;
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -321,35 +324,102 @@ void loop() {
   {
     millis_flag=2;
     lcd_key = read_LCD_buttons();  // read the buttons
-    if(lcd_key!=btnNONE) backlight_timeout=50;
+    if(lcd_key!=btnNONE) backlight_timeout=MENU_SLEEP;
     if(backlight_timeout>0)   // backlight active, menu functions active
     {
       backlight_timeout--;
       digitalWrite(BACKLIGHTPIN, HIGH);
-      if(lcd_key==btnUP||lcd_key==btnDOWN) menu=1;
+      if((lcd_key==btnUP||lcd_key==btnDOWN)&&menu==0) menu=1;
+      switch (lcd_key)               // depending on which button was pushed, we perform an action
+      {
+        case btnUP:               // up
+          {
+            if(menu_pointer>0) menu_pointer--;
+            break;
+          }
+        case btnDOWN:               // down
+          {
+            if(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t)) menu_pointer++;
+            break;
+          }
+        case btnRIGHT:               // right
+          {
+            if(menu==1&&menu_pointer==0) menu=2;
+            else if(menu==1&&menu_pointer==1) menu=3;
+            else if(menu==1&&menu_pointer==2) menu=4;
+            else if(menu==1&&menu_pointer==3) menu=0;
+            else if(menu==2&&menu_pointer>1) menu=1;
+            else if(menu==3&&menu_pointer>1) menu=1;
+            else if(menu==4&&(menu_pointer>=sizeof(wsprfreqs)/sizeof(freq_set_t))) menu=1;
+            menu_pointer=0;
+            break;
+          }
+      }
     }
     else 
     {
       digitalWrite(BACKLIGHTPIN, LOW);
       menu=0;
+      menu_pointer=0;
     }
     
     DOG.clear();
-    if(menu==1)
+    if(menu==1) // main menu
     {
-      DOG.string(0,0,DENSE_NUMBERS_8,"SETTINGS", ALIGN_LEFT);
-      DOG.string(0,1,DENSE_NUMBERS_8,"GNSS INFOS", ALIGN_LEFT);
-      DOG.string(0,2,DENSE_NUMBERS_8,"FREQUENCIES", ALIGN_LEFT);
-      DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
+      if(menu_pointer==0) DOG.string(0,0,DENSE_NUMBERS_8,"SETTINGS", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,0,DENSE_NUMBERS_8,"SETTINGS", ALIGN_LEFT);
+      if(menu_pointer==1) DOG.string(0,1,DENSE_NUMBERS_8,"GNSS INFOS", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,1,DENSE_NUMBERS_8,"GNSS INFOS", ALIGN_LEFT);
+      if(menu_pointer==2) DOG.string(0,2,DENSE_NUMBERS_8,"FREQUENCIES", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,2,DENSE_NUMBERS_8,"FREQUENCIES", ALIGN_LEFT);
+      if(menu_pointer==3) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
     }
-    else if(menu==2)
+    else if(menu==2)  // settings
     {
       DOG.string(0,0,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
       DOG.string(0,1,DENSE_NUMBERS_8,"WSPR TYPE", ALIGN_LEFT);
 
-      DOG.string(50,0,DENSE_NUMBERS_8,call); // print call
-      DOG.string(50,1,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
-      DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);     
+      DOG.string(70,0,DENSE_NUMBERS_8,call); // print call
+      DOG.string(70,1,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
+      if(menu_pointer>1) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
+    }
+    else if(menu==3)  // gnss infos
+    {
+      DOG.string(0,0,DENSE_NUMBERS_8,"LAT", ALIGN_LEFT);
+      DOG.string(0,1,DENSE_NUMBERS_8,"LON", ALIGN_LEFT);
+      DOG.string(0,2,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
+      DOG.string(0,2,DENSE_NUMBERS_8,todatestrt(global_timestamp), ALIGN_RIGHT); // print date
+      String lat_str(global_rmc.latitude);
+      DOG.string(30,0,DENSE_NUMBERS_8,lat_str.c_str());
+      String lon_str(global_rmc.longitude);
+      DOG.string(30,1,DENSE_NUMBERS_8,lon_str.c_str());
+
+      if(menu_pointer>1) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
+    }
+    else if(menu==4)  // frequencies
+    {
+      for(int i=0; i<4; i++)
+      {
+        if((i+4*(menu_pointer/4))<(sizeof(wsprfreqs)/sizeof(freq_set_t)))
+        {
+          String freq_str((unsigned int)wsprfreqs[i+4*(menu_pointer/4)].freq);
+          if((menu_pointer%4)==i) DOG.string(0,i,DENSE_NUMBERS_8,freq_str.c_str(), ALIGN_LEFT, STYLE_INVERSE);
+          else DOG.string(0,i,DENSE_NUMBERS_8,freq_str.c_str());
+          String channel_str((unsigned int)wsprfreqs[i+4*(menu_pointer/4)].clk);
+          DOG.string(60,i,DENSE_NUMBERS_8,channel_str.c_str());
+          String pre_tune_str((unsigned int)wsprfreqs[i+4*(menu_pointer/4)].pre_tune);
+          DOG.string(70,i,DENSE_NUMBERS_8,pre_tune_str.c_str());
+        }
+        else
+        {
+          if(menu_pointer>=(sizeof(wsprfreqs)/sizeof(freq_set_t))) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
+          else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
+          break;
+        }
+      }
     }
     else
     {
