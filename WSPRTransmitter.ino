@@ -74,7 +74,6 @@ unsigned long long freq;
 enum si5351_clock clk;
 unsigned int pre_tune;
 char call[] = "N0CALL";
-char loc[] = "AA00";
 uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
@@ -150,7 +149,7 @@ bool handle_wspr_tx(bool start_new)
   }
 }
 
-void set_tx_buffer()
+void set_tx_buffer(char *loc)
 {
   // Clear out the transmit buffer
   memset(tx_buffer, 0, 255);
@@ -298,13 +297,9 @@ void loop() {
       if (global_rmc.is_valid&&state==1)
       {
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
-        loc[0]=locatorbuf[0];
-        loc[1]=locatorbuf[1];
-        loc[2]=locatorbuf[2];
-        loc[3]=locatorbuf[3];
   // Encode the message in the transmit buffer
   // This is RAM intensive and should be done separately from other subroutines
-        set_tx_buffer();
+        set_tx_buffer(locatorbuf);
         state=2;
       }
 
