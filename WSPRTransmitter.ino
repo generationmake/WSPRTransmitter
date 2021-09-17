@@ -149,13 +149,13 @@ bool handle_wspr_tx(bool start_new)
   }
 }
 
-void set_tx_buffer(char *loc)
+void set_tx_buffer(char* tx_call, char *loc)
 {
   // Clear out the transmit buffer
   memset(tx_buffer, 0, 255);
 
   // Set the proper frequency and timer CTC depending on mode
-  jtencode.wspr_encode(call, loc, dbm, tx_buffer);
+  jtencode.wspr_encode(tx_call, loc, dbm, tx_buffer);
 }
 
 /* ---------------- functions to format and print time and date ------------------ */
@@ -271,12 +271,24 @@ void generatefullcall(char *call, int prefix, int suffix, char *fullcall)
   fullcall[j]=0;
 }
 
+void generatebracketcall(char *call, char *bracketcall)
+{
+  bracketcall[0]='<';
+  for(int i=0;i<6;i++)
+  {
+    bracketcall[i+1]=call[i];
+  }
+  bracketcall[7]='>';
+  bracketcall[8]=0;
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
   static int freq_cycle=0;
   static char locatorbuf[]={"000000"};
   static char fullcall[]={"00000000000000"};
+  static char bracketcall[]={"00000000000000"};
   static int backlight_timeout=0;
   int lcd_key=btnNONE;
   static int millis_flag=0;
@@ -284,8 +296,10 @@ void loop() {
   static int menu_pointer=0;
   static uint8_t prefix=0;
   static uint8_t suffix=0;
+  static int type2_3_count=0;
 
   generatefullcall(call, prefix, suffix, fullcall);
+  generatebracketcall(call, bracketcall);
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -304,11 +318,14 @@ void loop() {
       {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
-        do
+        if(type2_3_count==0)
         {
-          freq_cycle++;
-          if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
-        } while(wsprfreqs[freq_cycle].active==false);
+          do
+          {
+            freq_cycle++;
+            if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
+          } while(wsprfreqs[freq_cycle].active==false);
+        }
         freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
         clk =  wsprfreqs[freq_cycle].clk;
         pre_tune =  wsprfreqs[freq_cycle].pre_tune;
@@ -317,6 +334,23 @@ void loop() {
           si5351.output_enable(clk, 1);
           si5351.set_freq(freq*100ULL, clk);
         }
+  // Encode the message in the transmit buffer
+  // This is RAM intensive and should be done separately from other subroutines
+        if(prefix>0||suffix>0) 
+        {
+          if(type2_3_count==0)  // type 2 message
+          {
+            set_tx_buffer(fullcall,locatorbuf);
+            type2_3_count++;
+          }
+          else    // type 3 message
+          {
+            set_tx_buffer(bracketcall,locatorbuf);
+            type2_3_count=0;
+          }
+
+        }
+        else set_tx_buffer(call,locatorbuf);  // Type 1 message
       }
     }
   }
@@ -331,9 +365,6 @@ void loop() {
       if (global_rmc.is_valid&&state==1)
       {
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
-  // Encode the message in the transmit buffer
-  // This is RAM intensive and should be done separately from other subroutines
-        set_tx_buffer(locatorbuf);
         state=2;
       }
 
