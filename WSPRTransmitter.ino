@@ -47,6 +47,8 @@
 
 #define MENU_SLEEP 80
 
+#define BACKLIGHTPIN 13
+
 struct freq_set_t
 {
   unsigned long long freq;
@@ -70,17 +72,10 @@ Si5351 si5351;
 JTEncode jtencode;
 
 // Global variables
-unsigned long long freq;
-enum si5351_clock clk;
-unsigned int pre_tune;
-char call[] = "N0CALL";
-uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
 uint8_t symbol_count_state=0;
 uint16_t tone_spacing;
-
-#define BACKLIGHTPIN 13
 
 void onRmcUpdate(nmea::RmcData const);
 
@@ -120,15 +115,17 @@ int read_LCD_buttons()
 }
 
 // Loop through the string, transmitting one character at a time.
-bool handle_wspr_tx(bool start_new)
+bool handle_wspr_tx(bool start_new, unsigned long long freq, enum si5351_clock clk)
 {
   static uint8_t i;
   static enum si5351_clock clkint=clk;
+  unsigned long long freqint=freq;
 
   if(start_new==true)
   {
     i=0;
     clkint=clk;
+    freqint=freq;
     // Reset the tone to the base frequency and turn on the output
     si5351.output_enable(clkint, 1);
   }
@@ -136,7 +133,7 @@ bool handle_wspr_tx(bool start_new)
 
   if(i < symbol_count)
   {
-    unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
+    unsigned long long int jf=(freqint * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
     si5351.set_freq(jf, clkint);
     i++;
     return true;
@@ -149,7 +146,7 @@ bool handle_wspr_tx(bool start_new)
   }
 }
 
-void set_tx_buffer(char* tx_call, char *loc)
+void set_tx_buffer(char* tx_call, char *loc, int dbm)
 {
   // Clear out the transmit buffer
   memset(tx_buffer, 0, 255);
@@ -221,14 +218,6 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
-  // Set the proper frequency, tone spacing, symbol count, and
-  // tone delay depending on mode
-  freq = wsprfreqs[0].freq;
-  clk = wsprfreqs[0].clk;
-  pre_tune = wsprfreqs[0].pre_tune;
-  symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
-  tone_spacing = WSPR_TONE_SPACING;
-
   // Set CLK0 output
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
   si5351.output_enable(SI5351_CLK0, 0); // Disable the clock initially
@@ -297,6 +286,11 @@ void loop() {
   static uint8_t prefix=0;
   static uint8_t suffix=0;
   static int type2_3_count=0;
+  char call[] = "N0CALL";
+  uint8_t dbm = 10;
+  static unsigned long long freq;
+  static enum si5351_clock clk;
+  static unsigned int pre_tune;
 
   generatefullcall(call, prefix, suffix, fullcall);
   generatebracketcall(call, bracketcall);
@@ -309,12 +303,12 @@ void loop() {
     flag_timer=0;
     if(state==3) 
     {
-      handle_wspr_tx(1);  // init wspr transmission
+      handle_wspr_tx(1,freq,clk);  // init wspr transmission
       state=4;
     }
     else if(state==4)
     {
-      if(!(handle_wspr_tx(0))) // send more data
+      if(!(handle_wspr_tx(0,0,SI5351_CLK0))) // send more data
       {
         state=2; // stop transmission     
         ITimer0.disableTimer(); // stop timer
@@ -340,17 +334,17 @@ void loop() {
         {
           if(type2_3_count==0)  // type 2 message
           {
-            set_tx_buffer(fullcall,locatorbuf);
+            set_tx_buffer(fullcall,locatorbuf,dbm);
             type2_3_count++;
           }
           else    // type 3 message
           {
-            set_tx_buffer(bracketcall,locatorbuf);
+            set_tx_buffer(bracketcall,locatorbuf,dbm);
             type2_3_count=0;
           }
 
         }
-        else set_tx_buffer(call,locatorbuf);  // Type 1 message
+        else set_tx_buffer(call,locatorbuf,dbm);  // Type 1 message
       }
     }
   }
@@ -364,6 +358,14 @@ void loop() {
 
       if (global_rmc.is_valid&&state==1)
       {
+        // Set the proper frequency, tone spacing, symbol count, and
+        // tone delay depending on mode
+        freq = wsprfreqs[0].freq;
+        clk = wsprfreqs[0].clk;
+        pre_tune = wsprfreqs[0].pre_tune;
+        symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
+        tone_spacing = WSPR_TONE_SPACING;
+      
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
         state=2;
       }
