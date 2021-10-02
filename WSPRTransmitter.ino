@@ -76,7 +76,6 @@ JTEncode jtencode;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
 uint8_t symbol_count_state=0;
-uint16_t tone_spacing;
 
 void onRmcUpdate(nmea::RmcData const);
 
@@ -121,6 +120,7 @@ bool handle_wspr_tx(bool start_new, unsigned long long freq, enum si5351_clock c
   static uint8_t i;
   static enum si5351_clock clkint=clk;
   unsigned long long freqint=freq;
+  uint16_t tone_spacing = WSPR_TONE_SPACING;
 
   if(start_new==true)
   {
@@ -365,7 +365,6 @@ void loop() {
         clk = wsprfreqs[0].clk;
         pre_tune = wsprfreqs[0].pre_tune;
         symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
-        tone_spacing = WSPR_TONE_SPACING;
       
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
         state=2;
