@@ -36,6 +36,7 @@
 #include <int.h>
 #include <string.h>
 
+#include <SPI.h>
 #include "Wire.h"
 #define TIMER_INTERRUPT_DEBUG         0
 #define _TIMERINTERRUPT_LOGLEVEL_     0
