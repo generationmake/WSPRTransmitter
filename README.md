@@ -1,5 +1,6 @@
 # WSPRTransmitter
 [![Compile Sketch status](https://github.com/generationmake/WSPRTransmitter/workflows/Compile%20Sketch/badge.svg)](https://github.com/generationmake/WSPRTransmitter/actions?workflow=Compile+Sketch)
+[![General Formatting Checks](https://github.com/generationmake/WSPRTransmitter/workflows/General%20Formatting%20Checks/badge.svg)](https://github.com/generationmake/WSPRTransmitter/actions?workflow=General+Formatting+Checks)
 
 Arduino Sketch for transmitting WSPR messages with a Si5351
 

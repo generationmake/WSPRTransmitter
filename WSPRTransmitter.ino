@@ -1,6 +1,6 @@
-/* 
+/*
  *  Arduino Sketch WSPR transmitter with Si5351 on Adafruit Feather M0
- *  
+ *
  *  WSPR transmit state machine
  *  state 0: after startup, no GPS fix
  *    |
@@ -36,6 +36,7 @@
 #include <int.h>
 #include <string.h>
 
+#include <SPI.h>
 #include "Wire.h"
 #define TIMER_INTERRUPT_DEBUG         0
 #define _TIMERINTERRUPT_LOGLEVEL_     0
@@ -46,6 +47,8 @@
 #define WSPR_DELAY              683          // Delay value for WSPR
 
 #define MENU_SLEEP 80
+
+#define BACKLIGHTPIN 13
 
 struct freq_set_t
 {
@@ -70,18 +73,9 @@ Si5351 si5351;
 JTEncode jtencode;
 
 // Global variables
-unsigned long long freq;
-enum si5351_clock clk;
-unsigned int pre_tune;
-char call[] = "N0CALL";
-char loc[] = "AA00";
-uint8_t dbm = 10;
 uint8_t tx_buffer[255];
 uint8_t symbol_count;
 uint8_t symbol_count_state=0;
-uint16_t tone_spacing;
-
-#define BACKLIGHTPIN 13
 
 void onRmcUpdate(nmea::RmcData const);
 
@@ -106,30 +100,33 @@ SAMDTimer ITimer0(TIMER_TC3);
 // read the buttons
 int read_LCD_buttons()
 {
-  int adc_key_in = analogRead(AIN_KEYPAD);      // read the value from the sensor 
+  int adc_key_in = analogRead(AIN_KEYPAD);      // read the value from the sensor
   // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
   // my buttons when read are centered at these values (MKR1010): 0, 11, 162, 354, 531, 763
   // we add approx 50 to those values and check to see if we are close
   if (adc_key_in > 1000) return btnNONE; // We make this the 1st option for speed reasons since it will be the most likely result
-  if (adc_key_in < 50)   return btnRIGHT;  
-  if (adc_key_in < 250)  return btnUP; 
-  if (adc_key_in < 450)  return btnDOWN; 
-  if (adc_key_in < 650)  return btnLEFT; 
-  if (adc_key_in < 850)  return btnSELECT;  
+  if (adc_key_in < 50)   return btnRIGHT;
+  if (adc_key_in < 250)  return btnUP;
+  if (adc_key_in < 450)  return btnDOWN;
+  if (adc_key_in < 650)  return btnLEFT;
+  if (adc_key_in < 850)  return btnSELECT;
 
   return btnNONE;  // when all others fail, return this...
 }
 
 // Loop through the string, transmitting one character at a time.
-bool handle_wspr_tx(bool start_new)
+bool handle_wspr_tx(bool start_new, unsigned long long freq, enum si5351_clock clk)
 {
   static uint8_t i;
   static enum si5351_clock clkint=clk;
+  unsigned long long freqint=freq;
+  uint16_t tone_spacing = WSPR_TONE_SPACING;
 
   if(start_new==true)
   {
     i=0;
     clkint=clk;
+    freqint=freq;
     // Reset the tone to the base frequency and turn on the output
     si5351.output_enable(clkint, 1);
   }
@@ -137,7 +134,7 @@ bool handle_wspr_tx(bool start_new)
 
   if(i < symbol_count)
   {
-    unsigned long long int jf=(freq * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
+    unsigned long long int jf=(freqint * 100ULL) + (unsigned long long)(tx_buffer[i] * tone_spacing);
     si5351.set_freq(jf, clkint);
     i++;
     return true;
@@ -150,13 +147,13 @@ bool handle_wspr_tx(bool start_new)
   }
 }
 
-void set_tx_buffer()
+void set_tx_buffer(char* tx_call, char *loc, int dbm)
 {
   // Clear out the transmit buffer
   memset(tx_buffer, 0, 255);
 
   // Set the proper frequency and timer CTC depending on mode
-  jtencode.wspr_encode(call, loc, dbm, tx_buffer);
+  jtencode.wspr_encode(tx_call, loc, dbm, tx_buffer);
 }
 
 /* ---------------- functions to format and print time and date ------------------ */
@@ -212,7 +209,7 @@ void setup() {
 //  DOG.createCanvas(128, 64, 0, 0, 1);  // Canvas in buffered mode
 
   DOG.string(0,0,UBUNTUMONO_B_16,"WSPR init ",ALIGN_CENTER); // print "SunPathClock" in line 3, centered
-  DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 5 
+  DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 5
   // Initialize the Si5351
   // Change the 2nd parameter in init if using a ref osc other
   // than 25 MHz
@@ -221,14 +218,6 @@ void setup() {
   // Use the Arduino's on-board LED as a keying indicator.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
-
-  // Set the proper frequency, tone spacing, symbol count, and
-  // tone delay depending on mode
-  freq = wsprfreqs[0].freq;
-  clk = wsprfreqs[0].clk;
-  pre_tune = wsprfreqs[0].pre_tune;
-  symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
-  tone_spacing = WSPR_TONE_SPACING;
 
   // Set CLK0 output
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
@@ -243,16 +232,69 @@ void setup() {
   si5351.output_enable(SI5351_CLK2, 0); // Disable the clock initially
 }
 
+void generatefullcall(char *call, int prefix, int suffix, char *fullcall)
+{
+  const char* prefixstr[]={"OE","OK","ON"};
+  int j=0;
+  if(prefix>0)
+  {
+    fullcall[0]=prefixstr[prefix-1][0];
+    fullcall[1]=prefixstr[prefix-1][1];
+    if(fullcall[1]==0) j=1;
+    else j=2;
+    fullcall[j]='/';
+    j++;
+  }
+  for(int i=0;i<6;i++)
+  {
+    fullcall[j]=call[i];
+    j++;
+  }
+  if(prefix==0&&suffix>0)
+  {
+    fullcall[j]='/';
+    j++;
+    if(suffix==1) fullcall[j]='P';
+    if(suffix==2) fullcall[j]='M';
+    j++;
+  }
+  fullcall[j]=0;
+}
+
+void generatebracketcall(char *call, char *bracketcall)
+{
+  bracketcall[0]='<';
+  for(int i=0;i<6;i++)
+  {
+    bracketcall[i+1]=call[i];
+  }
+  bracketcall[7]='>';
+  bracketcall[8]=0;
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   static int state=0;
   static int freq_cycle=0;
   static char locatorbuf[]={"000000"};
+  static char fullcall[]={"00000000000000"};
+  static char bracketcall[]={"00000000000000"};
   static int backlight_timeout=0;
   int lcd_key=btnNONE;
   static int millis_flag=0;
   static int menu=0;
   static int menu_pointer=0;
+  static uint8_t prefix=0;
+  static uint8_t suffix=0;
+  static int type2_3_count=0;
+  char call[] = "N0CALL";
+  uint8_t dbm = 10;
+  static unsigned long long freq;
+  static enum si5351_clock clk;
+  static unsigned int pre_tune;
+
+  generatefullcall(call, prefix, suffix, fullcall);
+  generatebracketcall(call, bracketcall);
 
   while (Serial1.available()) {
     parser.encode((char)Serial1.read());
@@ -260,22 +302,25 @@ void loop() {
   if(flag_timer) // this is called every 683 ms when WSPR transmission is active
   {
     flag_timer=0;
-    if(state==3) 
+    if(state==3)
     {
-      handle_wspr_tx(1);  // init wspr transmission
+      handle_wspr_tx(1,freq,clk);  // init wspr transmission
       state=4;
     }
     else if(state==4)
     {
-      if(!(handle_wspr_tx(0))) // send more data
+      if(!(handle_wspr_tx(0,0,SI5351_CLK0))) // send more data
       {
-        state=2; // stop transmission     
+        state=2; // stop transmission
         ITimer0.disableTimer(); // stop timer
-        do
+        if(type2_3_count==0)
         {
-          freq_cycle++;
-          if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
-        } while(wsprfreqs[freq_cycle].active==false);
+          do
+          {
+            freq_cycle++;
+            if(freq_cycle>=sizeof(wsprfreqs)/sizeof(freq_set_t)) freq_cycle=0;
+          } while(wsprfreqs[freq_cycle].active==false);
+        }
         freq =  wsprfreqs[freq_cycle].freq;   // get settings from struct defined at the beginning of the code
         clk =  wsprfreqs[freq_cycle].clk;
         pre_tune =  wsprfreqs[freq_cycle].pre_tune;
@@ -284,6 +329,23 @@ void loop() {
           si5351.output_enable(clk, 1);
           si5351.set_freq(freq*100ULL, clk);
         }
+  // Encode the message in the transmit buffer
+  // This is RAM intensive and should be done separately from other subroutines
+        if(prefix>0||suffix>0)
+        {
+          if(type2_3_count==0)  // type 2 message
+          {
+            set_tx_buffer(fullcall,locatorbuf,dbm);
+            type2_3_count++;
+          }
+          else    // type 3 message
+          {
+            set_tx_buffer(bracketcall,locatorbuf,dbm);
+            type2_3_count=0;
+          }
+
+        }
+        else set_tx_buffer(call,locatorbuf,dbm);  // Type 1 message
       }
     }
   }
@@ -297,14 +359,14 @@ void loop() {
 
       if (global_rmc.is_valid&&state==1)
       {
+        // Set the proper frequency, tone spacing, symbol count, and
+        // tone delay depending on mode
+        freq = wsprfreqs[0].freq;
+        clk = wsprfreqs[0].clk;
+        pre_tune = wsprfreqs[0].pre_tune;
+        symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
+
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
-        loc[0]=locatorbuf[0];
-        loc[1]=locatorbuf[1];
-        loc[2]=locatorbuf[2];
-        loc[3]=locatorbuf[3];
-  // Encode the message in the transmit buffer
-  // This is RAM intensive and should be done separately from other subroutines
-        set_tx_buffer();
         state=2;
       }
 
@@ -348,11 +410,15 @@ void loop() {
           }
         case btnRIGHT:               // right
           {
+            if(menu==2&&menu_pointer==0) if(prefix<3) prefix++;
+            if(menu==2&&menu_pointer==1) if(suffix<2) suffix++;
             if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=true;
             break;
           }
         case btnLEFT:               // left
           {
+            if(menu==2&&menu_pointer==0) if(prefix>0) prefix--;
+            if(menu==2&&menu_pointer==1) if(suffix>0) suffix--;
             if(menu==4&&(menu_pointer<sizeof(wsprfreqs)/sizeof(freq_set_t))) wsprfreqs[menu_pointer].active=false;
             break;
           }
@@ -370,13 +436,13 @@ void loop() {
           }
       }
     }
-    else 
+    else
     {
       digitalWrite(BACKLIGHTPIN, LOW);
       menu=0;
       menu_pointer=0;
     }
-    
+
     DOG.clear();
     if(menu==1) // main menu
     {
@@ -391,11 +457,20 @@ void loop() {
     }
     else if(menu==2)  // settings
     {
-      DOG.string(0,0,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
-      DOG.string(0,1,DENSE_NUMBERS_8,"WSPR TYPE", ALIGN_LEFT);
+      if(menu_pointer==0) DOG.string(0,0,DENSE_NUMBERS_8,"PREFIX", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,0,DENSE_NUMBERS_8,"PREFIX", ALIGN_LEFT);
+      if(menu_pointer==1) DOG.string(0,1,DENSE_NUMBERS_8,"SUFFIX", ALIGN_LEFT, STYLE_INVERSE);
+      else DOG.string(0,1,DENSE_NUMBERS_8,"SUFFIX", ALIGN_LEFT);
+      String prefix_str(prefix);
+      DOG.string(40,0,DENSE_NUMBERS_8,prefix_str.c_str());
+      String suffix_str(suffix);
+      DOG.string(40,1,DENSE_NUMBERS_8,suffix_str.c_str());
 
-      DOG.string(70,0,DENSE_NUMBERS_8,call); // print call
-      DOG.string(70,1,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
+      DOG.string(0,2,DENSE_NUMBERS_8,"CALL", ALIGN_LEFT);
+
+      DOG.string(40,2,DENSE_NUMBERS_8,fullcall); // print call
+      if(prefix>0||suffix>0) DOG.string(90,2,DENSE_NUMBERS_8,"TYPE 2+3"); // print type 1
+      else DOG.string(90,2,DENSE_NUMBERS_8,"TYPE 1"); // print type 1
       if(menu_pointer>1) DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT, STYLE_INVERSE);
       else DOG.string(0,3,DENSE_NUMBERS_8,"<- BACK", ALIGN_LEFT);
     }
@@ -440,8 +515,8 @@ void loop() {
     else
     {
       DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
-      DOG.string(0,1,DENSE_NUMBERS_8,call, ALIGN_RIGHT); // print call
-      if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
+      DOG.string(0,1,DENSE_NUMBERS_8,fullcall, ALIGN_RIGHT); // print call
+      if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2
       if(state>=1)    // clock fix
       {
         DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
@@ -459,11 +534,11 @@ void loop() {
         DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
         DOG.string(15,2,DENSE_NUMBERS_8,"/");
       }
-      if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
-      if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0 
+      if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0
+      if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0
+      if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0
+      if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0
+      if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0
     }
   }
 }
