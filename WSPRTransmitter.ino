@@ -1,6 +1,6 @@
-/* 
+/*
  *  Arduino Sketch WSPR transmitter with Si5351 on Adafruit Feather M0
- *  
+ *
  *  WSPR transmit state machine
  *  state 0: after startup, no GPS fix
  *    |
@@ -100,16 +100,16 @@ SAMDTimer ITimer0(TIMER_TC3);
 // read the buttons
 int read_LCD_buttons()
 {
-  int adc_key_in = analogRead(AIN_KEYPAD);      // read the value from the sensor 
+  int adc_key_in = analogRead(AIN_KEYPAD);      // read the value from the sensor
   // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
   // my buttons when read are centered at these values (MKR1010): 0, 11, 162, 354, 531, 763
   // we add approx 50 to those values and check to see if we are close
   if (adc_key_in > 1000) return btnNONE; // We make this the 1st option for speed reasons since it will be the most likely result
-  if (adc_key_in < 50)   return btnRIGHT;  
-  if (adc_key_in < 250)  return btnUP; 
-  if (adc_key_in < 450)  return btnDOWN; 
-  if (adc_key_in < 650)  return btnLEFT; 
-  if (adc_key_in < 850)  return btnSELECT;  
+  if (adc_key_in < 50)   return btnRIGHT;
+  if (adc_key_in < 250)  return btnUP;
+  if (adc_key_in < 450)  return btnDOWN;
+  if (adc_key_in < 650)  return btnLEFT;
+  if (adc_key_in < 850)  return btnSELECT;
 
   return btnNONE;  // when all others fail, return this...
 }
@@ -209,7 +209,7 @@ void setup() {
 //  DOG.createCanvas(128, 64, 0, 0, 1);  // Canvas in buffered mode
 
   DOG.string(0,0,UBUNTUMONO_B_16,"WSPR init ",ALIGN_CENTER); // print "SunPathClock" in line 3, centered
-  DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 5 
+  DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 5
   // Initialize the Si5351
   // Change the 2nd parameter in init if using a ref osc other
   // than 25 MHz
@@ -302,7 +302,7 @@ void loop() {
   if(flag_timer) // this is called every 683 ms when WSPR transmission is active
   {
     flag_timer=0;
-    if(state==3) 
+    if(state==3)
     {
       handle_wspr_tx(1,freq,clk);  // init wspr transmission
       state=4;
@@ -311,7 +311,7 @@ void loop() {
     {
       if(!(handle_wspr_tx(0,0,SI5351_CLK0))) // send more data
       {
-        state=2; // stop transmission     
+        state=2; // stop transmission
         ITimer0.disableTimer(); // stop timer
         if(type2_3_count==0)
         {
@@ -331,7 +331,7 @@ void loop() {
         }
   // Encode the message in the transmit buffer
   // This is RAM intensive and should be done separately from other subroutines
-        if(prefix>0||suffix>0) 
+        if(prefix>0||suffix>0)
         {
           if(type2_3_count==0)  // type 2 message
           {
@@ -365,7 +365,7 @@ void loop() {
         clk = wsprfreqs[0].clk;
         pre_tune = wsprfreqs[0].pre_tune;
         symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
-      
+
         jtencode.latlon_to_grid(global_rmc.latitude,global_rmc.longitude,locatorbuf);
         state=2;
       }
@@ -436,13 +436,13 @@ void loop() {
           }
       }
     }
-    else 
+    else
     {
       digitalWrite(BACKLIGHTPIN, LOW);
       menu=0;
       menu_pointer=0;
     }
-    
+
     DOG.clear();
     if(menu==1) // main menu
     {
@@ -516,7 +516,7 @@ void loop() {
     {
       DOG.string(0,0,DENSE_NUMBERS_8,locatorbuf, ALIGN_RIGHT); // print locator
       DOG.string(0,1,DENSE_NUMBERS_8,fullcall, ALIGN_RIGHT); // print call
-      if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2 
+      if(state==0) DOG.string(0,2,UBUNTUMONO_B_16,"data not valid",ALIGN_CENTER); // print "not valid" in line 2
       if(state>=1)    // clock fix
       {
         DOG.string(0,3,DENSE_NUMBERS_8,totimestrt(global_timestamp), ALIGN_LEFT); // print time
@@ -534,11 +534,11 @@ void loop() {
         DOG.string(20,2,DENSE_NUMBERS_8,statec_str.c_str());
         DOG.string(15,2,DENSE_NUMBERS_8,"/");
       }
-      if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0 
-      if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0 
-      if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0 
+      if(state==0) DOG.string(0,0,UBUNTUMONO_B_16," CLK wait ",ALIGN_LEFT); // print status in line 0
+      if(state==1) DOG.string(0,0,UBUNTUMONO_B_16," GPS wait ",ALIGN_LEFT); // print status in line 0
+      if(state==2) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR wait ",ALIGN_LEFT); // print status in line 0
+      if(state==3) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR start",ALIGN_LEFT); // print status in line 0
+      if(state==4) DOG.string(0,0,UBUNTUMONO_B_16,"WSPR send ",ALIGN_LEFT); // print status in line 0
     }
   }
 }
